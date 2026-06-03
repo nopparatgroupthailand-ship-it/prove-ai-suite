@@ -66,7 +66,7 @@ export default function MeetingMainPage() {
       setMessages(prev => prev.map(msg => msg.id === aiMsgId ? { ...msg, text: data.reply || '⚠️ ส่งข้อมูลมาว่างเปล่า' } : msg));
     } catch (err: any) {
       setMessages(prev => prev.map(msg => msg.id === aiMsgId ? { ...msg, text: `❌ เกิดข้อผิดพลาด: ${err.message}` } : msg));
-    } {
+    } finally {
       setLoading(false);
     }
   };
@@ -76,7 +76,7 @@ export default function MeetingMainPage() {
       
       {/* ฝั่งซ้าย: ระบบประชุมวิดีโอ */}
       <div style={{ width: `${leftWidth}%`, minWidth: '250px', backgroundColor: '#0b0f19', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifycontent: 'center', backgroundColor: '#020617', color: '#475569', padding: '20px' }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#020617', color: '#475569', padding: '20px' }}>
           {meetingMode === 'jitsi' ? (
             <iframe src="https://meet.jit.si/PhraeMeetingRoom" allow="microphone; camera" style={{ width: '100%', height: '100%', border: 'none' }} />
           ) : meetingMode === 'webex' ? (
