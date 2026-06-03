@@ -68,7 +68,6 @@ export default function MeetingMainPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // แสดงข้อความแจ้งสถานะระบบในแชต
     const newSystemMsg = {
       id: Date.now().toString(),
       role: "system",
@@ -76,7 +75,6 @@ export default function MeetingMainPage() {
     };
     setChatMessages((prev) => [...prev, newSystemMsg]);
 
-    // จำลองผลลัพธ์การตอบสนองหลัง AI อ่านไฟล์เสร็จ
     setTimeout(() => {
       setChatMessages((prev) => [
         ...prev,
@@ -173,7 +171,7 @@ export default function MeetingMainPage() {
           </button>
         </div>
 
-        {/* ส่วนแสดงผลจอภาพวิดีโอหลัก */}
+        {/* ส่วนแสดงผลจอภาพวิดีโอหลัก (จุดที่เคย Error แก้ไข Syntax ปีกกาครอบตรงนี้ให้แล้วครับพี่) */}
         <div className="flex-1 flex items-center justify-center p-6 bg-slate-950">
           {isMeetingActive && savedMeetingUrl ? (
             <div className="text-center p-6 bg-slate-900 rounded-xl border border-slate-800 max-w-md">
@@ -194,8 +192,8 @@ export default function MeetingMainPage() {
               <div className="text-4xl mb-2">🚫</div>
               <p className="text-sm">กรุณากรอกลิงก์ด้านบน แล้วกดปุ่ม "เข้าสู่ระบบห้องประชุม" ด้านล่างครับ</p>
             </div>
-          );
-        }
+          )}
+        </div>
 
         {/* ทูลบาร์ควบคุมสถานะด้านล่างฝั่งซ้าย */}
         <div className="p-3 bg-slate-900 border-t border-slate-800 flex gap-3 justify-center">
@@ -225,7 +223,7 @@ export default function MeetingMainPage() {
       {/* ฝั่งขวา: พื้นที่ทำงานของระบบผู้ช่วย AI (Workspace AI Terminal) */}
       <div className={`flex-1 flex flex-col ${isDarkMode ? "bg-slate-900" : "bg-white"}`}>
         
-        {/* หัวข้อด้านบนแผงแชต: สลับปุ่ม Token ไปเป็น Light/Dark Mode แทน */}
+        {/* หัวข้อด้านบนแผงแชต */}
         <div className={`p-4 border-b flex justify-between items-center ${isDarkMode ? "border-slate-800 bg-slate-900" : "border-slate-200 bg-slate-50"}`}>
           <div>
             <h2 className="text-sm font-bold">Prove AI Assistant Suite (v4)</h2>
@@ -234,7 +232,6 @@ export default function MeetingMainPage() {
             </span>
           </div>
           
-          {/* ปุ่มสลับโหมดมืด-สว่าง ตามใบสั่งเลยครับ */}
           <button
             onClick={() => setIsDarkMode(!isDarkMode)}
             className={`px-3 py-1.5 text-xs font-semibold rounded-md border flex items-center gap-1.5 transition ${
@@ -247,7 +244,7 @@ export default function MeetingMainPage() {
           </button>
         </div>
 
-        {/* กระดานสรุปประเด็นแชตและข้อกฎหมายพัสดุ */}
+        {/* กระดานสรุปประเด็นแชต */}
         <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
           {chatMessages.map((msg) => (
             <div
@@ -267,10 +264,9 @@ export default function MeetingMainPage() {
           ))}
         </div>
 
-        {/* แผงอินพุตด้านล่าง นำปุ่มแนบไฟล์เอกสารระเบียบพัสดุใส่กลับเข้ามาให้แล้ว */}
+        {/* แผงอินพุตด้านล่าง */}
         <div className={`p-4 border-t flex gap-2 items-center ${isDarkMode ? "border-slate-800 bg-slate-900" : "border-slate-200 bg-white"}`}>
           
-          {/* Input ซ่อนสำหรับอัปโหลดไฟล์ */}
           <input
             type="file"
             ref={fileInputRef}
@@ -279,7 +275,6 @@ export default function MeetingMainPage() {
             className="hidden"
           />
           
-          {/* ปุ่มกดสำหรับใส่เอกสารวาระ/พรบ.พัสดุ ให้เอไอได้อ่านก่อนเริ่มประชุม */}
           <button
             onClick={() => fileInputRef.current?.click()}
             title="อัปโหลดไฟล์ พรบ./ระเบียบ/วาระ ให้ AI อ่านก่อนเริ่มประชุม"
