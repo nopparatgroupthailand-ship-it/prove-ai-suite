@@ -4,7 +4,7 @@ export const runtime = 'edge';
 
 export async function POST(req: Request) {
   try {
-    const { message, apiPool, useTranslation } = await req.json();
+    const { message, apiPool } = await req.json();
 
     if (!message) {
       return NextResponse.json({ error: 'กรุณาระบุข้อความ' }, { status: 400 });
@@ -22,15 +22,14 @@ export async function POST(req: Request) {
 
     let lastError = '';
 
-    // วนลูปยิงตามชุดลำดับ Pool
+    // วนลูปยิงตามชุดลำดับ Pool (ถ้าช่อง 1 พัง จะโดดไปช่อง 2 อัตโนมัติ)
     for (let i = 0; i < activePool.length; i++) {
       const slot = activePool[i];
       const providerType = slot.provider ? slot.provider.toLowerCase() : '';
 
       try {
-        // 🟢 กรณีเป็นค่าย GOOGLE GEMINI
+        // 🟢 [ท่อที่ 1] กรณีเป็นค่าย GOOGLE GEMINI (ยิงแบบ Native API เพื่อความเสถียรและความเร็ว)
         if (providerType === 'gemini') {
-          // 🎯 จุดแก้ไขสำคัญ: สลับมาใช้ชื่อโมเดลตัวใหม่ล่าสุดตามหน้าเทสที่ผ่านชัวร์ของพี่
           const modelName = 'gemini-3-flash-preview'; 
           const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${slot.key.trim()}`;
 
@@ -56,20 +55,46 @@ export async function POST(req: Request) {
             }
           }
           const errData = await response.text();
-          lastError = `ค่าย GEMINI ปฏิเสธคำขอ: ${response.status} - ${errData}`;
+          lastError = `ค่าย GEMINI แจ้งปัญหา: ${response.status} - ${errData}`;
         } 
         
-        // 🔵 กรณีเป็นค่ายอื่นๆ (ThaiLLM / OpenAI)
-        else {
-          let cleanUrl = slot.url ? slot.url.trim() : '';
-          
-          if (cleanUrl.includes('playground.thaillm.or.th')) {
-            cleanUrl = 'https://thaillm.or.th/api/v1';
-          }
-          if (!cleanUrl) {
-            cleanUrl = providerType === 'openai' ? 'https://api.openai.com/v1' : 'https://thaillm.or.th/api/v1';
-          }
+        // 🟡 [ท่อที่ 2] กรณีเป็นค่าย ThaiLLM (อ้างอิงตามโครงสร้าง OpenAI-compatible ของทางสมาคมฯ)
+        else if (providerType === 'thaillm') {
+          const thaillmUrl = 'https://thaillm.or.th/api/v1/chat/completions';
+          const modelName = slot.model || 'opentaigpt-thaillm-8b-instruct-v7.2';
 
+          const response = await fetch(thaillmUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${slot.key.trim()}`
+            },
+            body: JSON.stringify({
+              model: modelName,
+              messages: [{ role: 'user', content: message }],
+              temperature: 0.3
+            }),
+            signal: AbortSignal.timeout(12000)
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const replyText = data.choices?.[0]?.message?.content;
+            if (replyText) {
+              return NextResponse.json({
+                reply: replyText,
+                usedSlot: i + 1,
+                provider: 'thaillm'
+              });
+            }
+          }
+          const errData = await response.text();
+          lastError = `ค่าย ThaiLLM แจ้งปัญหา: ${response.status} - ${errData}`;
+        }
+
+        // 🔵 [ท่อที่ 3] กรณีเป็นค่ายอื่นๆ มาตรฐาน (เช่น OpenAI สแตนด์บายสำรองระบบ)
+        else {
+          let cleanUrl = slot.url ? slot.url.trim() : 'https://api.openai.com/v1';
           if (!cleanUrl.endsWith('/chat/completions')) {
             cleanUrl = cleanUrl.endsWith('/') ? `${cleanUrl}chat/completions` : `${cleanUrl}/chat/completions`;
           }
@@ -81,7 +106,7 @@ export async function POST(req: Request) {
               'Authorization': `Bearer ${slot.key.trim()}`
             },
             body: JSON.stringify({
-              model: slot.model || 'opentaigpt-thaillm-8b-instruct-v7.2',
+              model: slot.model || 'gpt-4o-mini',
               messages: [{ role: 'user', content: message }],
               temperature: 0.3
             }),
@@ -99,10 +124,10 @@ export async function POST(req: Request) {
               });
             }
           }
-          lastError = `ค่าย ${providerType.toUpperCase()} แจ้ง Error: ${response.status}`;
+          lastError = `ค่าย ${providerType.toUpperCase()} แจ้งปัญหา: ${response.status}`;
         }
       } catch (err: any) {
-        lastError = `ช่องลำดับที่ ${i + 1} (${providerType}) เกิดข้อผิดพลาด: ${err.message}`;
+        lastError = `ช่องลำดับที่ ${i + 1} (${providerType}) ตรวจพบปัญหาภายใน: ${err.message}`;
       }
     }
 
