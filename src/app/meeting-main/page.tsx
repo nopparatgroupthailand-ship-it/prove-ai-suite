@@ -1,79 +1,67 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React from "react";
 
 export default function MeetingMainPage() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const leftPaneRef = useRef<HTMLDivElement>(null);
-
-  // ระบบลากปรับขนาด
-  const startResizing = (e: React.MouseEvent) => {
-    const startX = e.clientX;
-    const startWidth = leftPaneRef.current?.offsetWidth || 0;
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      if (leftPaneRef.current && containerRef.current) {
-        const newWidth = ((startWidth + (moveEvent.clientX - startX)) / containerRef.current.offsetWidth) * 100;
-        if (newWidth > 15 && newWidth < 85) {
-          leftPaneRef.current.style.width = `${newWidth}%`;
-        }
-      }
-    };
-
-    const onMouseUp = () => {
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
-    };
-
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
-  };
-
   return (
-    <div ref={containerRef} className="flex w-screen h-screen overflow-hidden bg-white">
-      {/* ฝั่งซ้าย: ห้องประชุม (Black Background) */}
-      <div ref={leftPaneRef} style={{ width: "60%" }} className="bg-black flex flex-col h-full">
-        <div className="flex-1 flex items-center justify-center text-slate-600">
-          <div className="text-center">
-            <span className="text-4xl">📹</span>
-            <p>เลือกโหมดการประชุม</p>
+    <div className="flex h-screen w-full bg-gray-50 text-gray-900 overflow-hidden">
+      
+      {/* 1. Sidebar ซ้าย */}
+      <aside className="w-20 bg-slate-900 flex flex-col items-center py-8 space-y-10 text-white">
+        <div className="text-2xl font-bold text-blue-400">P</div>
+        <div className="space-y-6 opacity-60">
+          <div>🏠</div>
+          <div>📋</div>
+          <div>📂</div>
+          <div>⚙️</div>
+        </div>
+      </aside>
+
+      {/* 2. Content กลาง */}
+      <main className="flex-1 flex flex-col p-8 overflow-y-auto">
+        <header className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-2xl font-bold">Project Management Dashboard</h1>
+            <p className="text-gray-500">โครงการปัจจุบัน | สถานะ: กำลังดำเนินการ</p>
+          </div>
+          <button className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700">
+            + สร้างโครงการใหม่
+          </button>
+        </header>
+
+        <section className="grid grid-cols-3 gap-6 mb-8">
+          {[
+            { title: "งบประมาณรวม", val: "—" },
+            { title: "ความคืบหน้า", val: "—" },
+            { title: "ระดับความเสี่ยง", val: "—" }
+          ].map((item, i) => (
+            <div key={i} className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+              <p className="text-sm text-gray-500 mb-1">{item.title}</p>
+              <h2 className="text-2xl font-bold">{item.val}</h2>
+            </div>
+          ))}
+        </section>
+
+        <section className="flex-1 bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+          <h3 className="font-bold mb-4">ตารางแผนการดำเนินงาน</h3>
+          <div className="h-64 flex items-center justify-center border-2 border-dashed border-gray-200 rounded-xl text-gray-400">
+            [ แสดงข้อมูลตาราง ]
+          </div>
+        </section>
+      </main>
+
+      {/* 3. Panel ขวา */}
+      <aside className="w-80 bg-white border-l border-gray-200 p-6 flex flex-col">
+        <h2 className="font-bold mb-6">AI Project Summary</h2>
+        <div className="flex-1 space-y-6">
+          <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+            <p className="text-sm text-gray-600">ระบบประมวลผลสรุปข้อมูลโครงการและเอกสารที่เกี่ยวข้อง</p>
           </div>
         </div>
-        <div className="h-16 bg-[#1e293b] flex items-center justify-center gap-2">
-          <button className="text-white border border-slate-600 px-4 py-2 rounded text-sm hover:bg-slate-700">Webex</button>
-          <button className="text-white border border-slate-600 px-4 py-2 rounded text-sm hover:bg-slate-700">Jitsi (Backup)</button>
-          <button className="text-red-400 border border-slate-600 px-4 py-2 rounded text-sm hover:bg-slate-800">บันทึกเสียง</button>
-        </div>
-      </div>
-
-      {/* แถบสีเทาตรงกลาง (Resizer) */}
-      <div 
-        onMouseDown={startResizing} 
-        className="w-[10px] bg-slate-200 cursor-col-resize hover:bg-blue-600 flex items-center justify-center text-slate-400 font-bold text-xs select-none"
-      >
-        ||
-      </div>
-
-      {/* ฝั่งขวา: AI Assistant */}
-      <div className="flex-1 flex flex-col bg-white h-full shadow-[-2px_0_10px_rgba(0,0,0,0.05)]">
-        <div className="p-4 border-b border-slate-200 bg-slate-50">
-          <div className="text-xs text-slate-500">
-            ปรับสัดส่วนหน้าจอได้โดยการลากแถบสีเทาตรงกลาง
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-5">
-          <div className="bg-slate-100 p-3 rounded-lg border border-slate-200 text-slate-800 text-lg">
-            สวัสดีครับ ผมคือผู้ช่วย AI ประจำคณะกรรมการ ท่านสามารถสอบถามระเบียบหรืออัปโหลดเอกสารวาระประชุมได้ที่นี่ครับ
-          </div>
-        </div>
-
-        <div className="p-4 border-t border-slate-200 flex gap-2">
-          <button className="bg-slate-500 text-white px-4 rounded-lg">📄</button>
-          <input className="flex-1 border border-slate-300 rounded-lg p-3" placeholder="พิมพ์คำถามที่นี่..." />
-          <button className="bg-blue-600 text-white px-6 rounded-lg">➤</button>
-        </div>
-      </div>
+        <button className="w-full bg-slate-900 text-white py-3 rounded-xl font-medium">
+          ดาวน์โหลดรายงานสรุป
+        </button>
+      </aside>
     </div>
   );
 }
