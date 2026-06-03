@@ -10,7 +10,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'กรุณาระบุข้อความ' }, { status: 400 });
     }
 
-    // คัดกรอง Pool ที่ส่งมาจากหน้าบ้าน
+    // คัดกรองคีย์ที่ส่งมาจากหน้าบ้าน
     let activePool = [];
     if (apiPool && Array.isArray(apiPool)) {
       activePool = apiPool.filter(slot => slot && slot.key && slot.key.trim() !== '');
@@ -22,15 +22,16 @@ export async function POST(req: Request) {
 
     let lastError = '';
 
-    // วนลูปตามระบบจัดลำดับ Pool
+    // วนลูปยิงตามชุดลำดับ Pool
     for (let i = 0; i < activePool.length; i++) {
       const slot = activePool[i];
       const providerType = slot.provider ? slot.provider.toLowerCase() : '';
 
       try {
-        // 🟢 กรณีเป็นค่าย GOOGLE GEMINI (ยิงเข้า Native API ของ Google โดยตรงเพื่อความเสถียร ไม่เจอ 404)
+        // 🟢 กรณีเป็นค่าย GOOGLE GEMINI
         if (providerType === 'gemini') {
-          const modelName = slot.model || 'gemini-1.5-flash';
+          // 🎯 จุดแก้ไขสำคัญ: สลับมาใช้ชื่อโมเดลตัวใหม่ล่าสุดตามหน้าเทสที่ผ่านชัวร์ของพี่
+          const modelName = 'gemini-3-flash-preview'; 
           const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${slot.key.trim()}`;
 
           const response = await fetch(geminiUrl, {
@@ -58,11 +59,10 @@ export async function POST(req: Request) {
           lastError = `ค่าย GEMINI ปฏิเสธคำขอ: ${response.status} - ${errData}`;
         } 
         
-        // 🔵 กรณีเป็นค่ายอื่นๆ (ThaiLLM / OpenAI) ที่ใช้โครงสร้าง OpenAI Format
+        // 🔵 กรณีเป็นค่ายอื่นๆ (ThaiLLM / OpenAI)
         else {
           let cleanUrl = slot.url ? slot.url.trim() : '';
           
-          // ดักจับ URL ผิดพลาดของ ThaiLLM
           if (cleanUrl.includes('playground.thaillm.or.th')) {
             cleanUrl = 'https://thaillm.or.th/api/v1';
           }
