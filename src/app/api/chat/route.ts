@@ -26,7 +26,8 @@ export async function POST(req: Request) {
 
     const promptContent = useTranslation ? simpleTranslateToEnglish(message) : message;
 
-    const activePool = apiPool && apiPool.length > 0 ? apiPool : [
+    // 🎯 ค่าเริ่มต้นระบบสำรอง (Fallback) กรณีหน้าบ้านส่งค่ามาว่างเปล่าทั้งหมด
+    const defaultPool = [
       { 
         provider: 'thaillm', 
         url: 'https://playground.thaillm.or.th/api/v1', 
@@ -36,22 +37,43 @@ export async function POST(req: Request) {
       { 
         provider: 'gemini', 
         url: 'https://generativelanguage.googleapis.com/v1beta/openai', 
-        key: process.env.GEMINI_API_KEY || 'AIzaSyYourGeminiKeyHere...',
+        key: process.env.GEMINI_API_KEY || '',
         model: 'gemini-1.5-flash' 
       },
       { 
         provider: 'openai', 
         url: 'https://api.openai.com/v1', 
-        key: process.env.OPENAI_API_KEY || 'sk-proj-YourOpenAIKeyHere...',
+        key: process.env.OPENAI_API_KEY || '',
         model: 'gpt-4o-mini' 
       }
     ];
 
+    // 🛡️ ดักจับและคัดกรองข้อมูลจากหน้าบ้านอย่างละเอียด ป้องกันการพังของโค้ด (Safety Filter)
+    let activePool = [];
+    if (apiPool && Array.isArray(apiPool) && apiPool.length > 0) {
+      activePool = apiPool.filter(slot => {
+        return slot && 
+               slot.key && slot.key.trim() !== '' && 
+               slot.url && slot.url.trim() !== '' &&
+               !slot.key.includes('Your'); // ข้ามคีย์ทดสอบที่ไม่ได้เปลี่ยนจริง
+      });
+    }
+
+    // ถ้าคัดกรองแล้วไม่มีคีย์ใดๆ ส่งมาจากหน้าบ้านเลย ให้สลับไปใช้คีย์หลักของระบบทันที
+    if (activePool.length === 0) {
+      activePool = defaultPool.filter(slot => slot.key && slot.key.trim() !== '');
+    }
+
+    // หากท้ายที่สุดแล้วไม่มีคีย์ของค่ายไหนพร้อมใช้งานเลย ให้แจ้งเตือนหน้าบ้านทันทีอย่างสุภาพ
+    if (activePool.length === 0) {
+      return NextResponse.json({ error: 'ไม่พบ API Key ที่พร้อมใช้งานในระบบ กรุณากรอกระบุอย่างน้อย 1 ค่ายครับ' }, { status: 400 });
+    }
+
     let lastError = '';
     
+    // วนลูปทำงานเฉพาะช่องที่มีข้อมูลจริงเท่านั้น
     for (let i = 0; i < activePool.length; i++) {
       const slot = activePool[i];
-      if (!slot.key || !slot.key.trim() || slot.key.includes('Your')) continue;
 
       try {
         let fetchUrl = '';
@@ -59,15 +81,18 @@ export async function POST(req: Request) {
         let bodyPayload = {};
 
         if (slot.provider === 'openai' || slot.provider === 'thaillm' || slot.provider === 'gemini') {
-          let cleanUrl = slot.url;
+          // 🛡️ ป้องกันระบบล่ม: ตรวจสอบความปลอดภัยของ URL ก่อนใช้คำสั่งจัดการข้อความ
+          let cleanUrl = slot.url ? slot.url.trim() : '';
+          if (!cleanUrl) continue;
+
           if (!cleanUrl.endsWith('/chat/completions')) {
             cleanUrl = cleanUrl.endsWith('/') ? `${cleanUrl}chat/completions` : `${cleanUrl}/chat/completions`;
           }
           fetchUrl = cleanUrl;
-          headers['Authorization'] = `Bearer ${slot.key}`;
+          headers['Authorization'] = `Bearer ${slot.key.trim()}`;
           
           bodyPayload = {
-            model: slot.model,
+            model: slot.model || 'opentaigpt-thaillm-8b-instruct-v7.2',
             messages: [
               { role: 'system', content: 'คุณคือ AI ผู้ช่วยสนับสนุนการประชุมและการจัดซื้อจัดจ้างอัจฉริยะ ตอบคำถามด้วยข้อมูลราชการที่เป็นทางการ แม่นยำ และกระชับ' },
               { role: 'user', content: promptContent }
@@ -81,14 +106,13 @@ export async function POST(req: Request) {
           method: 'POST',
           headers: headers,
           body: JSON.stringify(bodyPayload),
-          signal: AbortSignal.timeout(12000)
+          signal: AbortSignal.timeout(12000) // จำกัดเวลา 12 วินาทีต่อค่าย
         });
 
         if (response.ok) {
           const data = await response.json();
           let replyText = '';
 
-          // 🎯 ปรับปรุงจุดแกะค่า JSON ใหม่ให้รองรับทุกมิติ ป้องกันคำตอบว่างเปล่า
           if (data.choices?.[0]?.message?.content) {
             replyText = data.choices[0].message.content;
           } else if (data.reply) {
@@ -98,7 +122,6 @@ export async function POST(req: Request) {
           } else if (typeof data === 'string') {
             replyText = data;
           } else {
-            // หากได้มาเป็นก้อน Object แปลกๆ ให้แปลงเป็นข้อความอ่านง่ายฟ้องออกมาเลย
             replyText = JSON.stringify(data);
           }
 
@@ -111,16 +134,16 @@ export async function POST(req: Request) {
             });
           }
         } else {
-          lastError = `กล่องลำดับที่ ${i + 1} (${slot.provider}) แจ้ง Error: ${response.status}`;
+          lastError = `ค่าย ${slot.provider.toUpperCase()} แจ้ง Error: ${response.status}`;
         }
       } catch (err: any) {
-        lastError = `กล่องลำดับที่ ${i + 1} (${slot.provider}) ไม่ตอบสนอง: ${err.message}`;
+        lastError = `ค่าย ${slot.provider.toUpperCase()} ไม่ตอบสนอง: ${err.message}`;
       }
     }
 
-    return NextResponse.json({ error: `ระบบ API Pool ล้มเหลวทุกช่องทางล่าสุด: ${lastError}` }, { status: 502 });
+    return NextResponse.json({ error: `ระบบ API Pool ล้มเหลว: ${lastError}` }, { status: 502 });
 
   } catch (error: any) {
-    return NextResponse.json({ error: `เกิดข้อผิดพลาดในระบบประมวลผลเครือข่าย: ${error.message}` }, { status: 500 });
+    return NextResponse.json({ error: `เกิดข้อผิดพลาดหลังบ้าน: ${error.message}` }, { status: 500 });
   }
 }
