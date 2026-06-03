@@ -1,81 +1,188 @@
-"use client";
+'use client';
 
-import React, { useState, useRef, useEffect } from "react";
+import { useState } from 'react';
 
 export default function SmartBoardroom() {
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [chatMessages, setChatMessages] = useState([
-    { role: "ai", text: "สวัสดีครับ ผมคือผู้ช่วย AI ประจำคณะกรรมการ ท่านสามารถสอบถามระเบียบหรืออัปโหลดเอกสารวาระประชุมได้ที่นี่ครับ" }
+  const [text, setText] = useState('');
+  const [messages, setMessages] = useState([
+    {
+      role: 'ai',
+      text: 'สวัสดีครับ ผมคือผู้ช่วย AI ประจำคณะกรรมการ',
+    },
   ]);
-  const [userInput, setUserInput] = useState("");
-  const leftPaneRef = useRef<HTMLDivElement>(null);
 
-  // จำลองการเรียก API
-  const handleAskAI = async () => {
-    if (!userInput.trim()) return;
-    
-    const newUserMsg = { role: "user", text: userInput };
-    setChatMessages(prev => [...prev, newUserMsg]);
-    setUserInput("");
+  const [apiKey, setApiKey] = useState('');
+  const [model, setModel] = useState('ollama');
 
-    // จำลอง Loading
-    const loadingId = Date.now();
-    setChatMessages(prev => [...prev, { role: "ai", text: "กำลังวิเคราะห์ข้อมูล..." }]);
+  const askAI = async () => {
+    if (!text.trim()) return;
 
-    // ที่นี่คือจุดที่พี่สามารถใส่ Logic เรียก API แบบในตัวอย่างเดิมได้เลย
-    console.log("Calling API...");
+    const userText = text;
+    setText('');
+
+    setMessages((prev) => [
+      ...prev,
+      { role: 'user', text: userText },
+      { role: 'ai', text: 'กำลังคิด...' },
+    ]);
+
+    try {
+      let reply = '';
+
+      // 🟢 OLLAMA (local)
+      if (model === 'ollama') {
+        const res = await fetch(`${apiKey}/api/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'gemma2',
+            prompt: userText,
+            stream: false,
+          }),
+        });
+
+        const data = await res.json();
+        reply = data.response;
+      }
+
+      // 🟡 Gemini placeholder
+      else if (model === 'gemini') {
+        reply = 'Gemini mode (ต้องใส่ API logic)';
+      }
+
+      // 🔵 ChatGPT placeholder
+      else if (model === 'chatgpt') {
+        reply = 'ChatGPT mode (ต้องใส่ API logic)';
+      }
+
+      setMessages((prev) =>
+        prev.map((m, i) =>
+          i === prev.length - 1 ? { ...m, text: reply } : m
+        )
+      );
+    } catch (err: any) {
+      setMessages((prev) =>
+        prev.map((m, i) =>
+          i === prev.length - 1
+            ? { ...m, text: 'Error: ' + err.message }
+            : m
+        )
+      );
+    }
   };
 
   return (
-    <div className="flex h-screen w-full bg-slate-100 overflow-hidden font-sans">
-      {/* --- ส่วนซ้าย: Meeting Area --- */}
-      <div ref={leftPaneRef} className="w-[60%] bg-black flex flex-col">
-        <div className="flex-1 flex items-center justify-center text-slate-500">
-          <div className="text-center">
-            <p className="text-4xl mb-4">📹</p>
-            <p>เลือกโหมดการประชุม</p>
-          </div>
-        </div>
-        <div className="h-16 bg-slate-900 flex justify-center items-center gap-4 text-white">
-          <button className="text-xs border border-slate-600 px-4 py-2 rounded">Webex</button>
-          <button className="text-xs border border-slate-600 px-4 py-2 rounded">Jitsi (Backup)</button>
-          <button className="text-xs text-red-400 border border-red-900 px-4 py-2 rounded">บันทึกเสียง</button>
+    <div style={styles.app}>
+      {/* LEFT PANEL */}
+      <div style={styles.left}>
+        <div style={styles.video}>
+          🎥 Meeting Area
         </div>
       </div>
 
-      {/* --- ส่วนกลาง: Resizer --- */}
-      <div className="w-2 bg-slate-300 cursor-col-resize hover:bg-blue-500 transition-colors" />
-
-      {/* --- ส่วนขวา: AI Assistant (หน้าจอตั้งค่า API) --- */}
-      <div className="flex-1 bg-white flex flex-col">
-        <div className="p-4 border-b border-slate-200">
-          <select className="w-full border p-2 mb-2 rounded text-sm">
-            <option>Google Gemini</option>
-            <option>Ollama (Local)</option>
-            <option>ChatGPT</option>
+      {/* RIGHT PANEL */}
+      <div style={styles.right}>
+        <div style={styles.header}>
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+          >
+            <option value="ollama">Ollama</option>
+            <option value="gemini">Gemini</option>
+            <option value="chatgpt">ChatGPT</option>
           </select>
-          <input className="w-full border p-2 rounded text-sm" placeholder="วาง API Key หรือ URL ที่นี่" />
+
+          <input
+            placeholder="API Key / URL"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            style={{ flex: 1 }}
+          />
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {chatMessages.map((msg, i) => (
-            <div key={i} className={`p-3 rounded-lg text-sm ${msg.role === 'user' ? 'bg-blue-600 text-white self-end ml-auto' : 'bg-slate-100 text-slate-800'}`}>
-              {msg.text}
+        <div style={styles.chat}>
+          {messages.map((m, i) => (
+            <div
+              key={i}
+              style={{
+                textAlign: m.role === 'user' ? 'right' : 'left',
+                margin: 8,
+              }}
+            >
+              <span
+                style={{
+                  display: 'inline-block',
+                  padding: 10,
+                  borderRadius: 10,
+                  background:
+                    m.role === 'user' ? '#2563eb' : '#eee',
+                  color: m.role === 'user' ? '#fff' : '#000',
+                }}
+              >
+                {m.text}
+              </span>
             </div>
           ))}
         </div>
 
-        <div className="p-4 border-t border-slate-200 flex gap-2">
-          <button className="px-3 bg-slate-200 rounded">📄</button>
-          <input 
-            className="flex-1 border p-2 rounded text-sm" 
-            value={userInput} 
-            onChange={(e) => setUserInput(e.target.value)}
-            placeholder="พิมพ์คำถามที่นี่..." 
+        <div style={styles.inputArea}>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            style={{ flex: 1 }}
           />
-          <button onClick={handleAskAI} className="px-4 bg-blue-600 text-white rounded">ส่ง</button>
+
+          <button onClick={askAI} style={styles.btn}>
+            ส่ง
+          </button>
         </div>
       </div>
     </div>
   );
 }
+
+const styles: any = {
+  app: {
+    display: 'flex',
+    height: '100vh',
+    fontFamily: 'sans-serif',
+  },
+  left: {
+    width: '40%',
+    background: '#111',
+    color: '#fff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  video: {
+    fontSize: 20,
+  },
+  right: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  header: {
+    display: 'flex',
+    gap: 10,
+    padding: 10,
+    borderBottom: '1px solid #ddd',
+  },
+  chat: {
+    flex: 1,
+    padding: 10,
+    overflowY: 'auto',
+  },
+  inputArea: {
+    display: 'flex',
+    padding: 10,
+    gap: 10,
+  },
+  btn: {
+    padding: '10px 20px',
+    background: '#2563eb',
+    color: '#fff',
+    border: 'none',
+  },
+};
