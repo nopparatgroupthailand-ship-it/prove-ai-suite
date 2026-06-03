@@ -6,44 +6,25 @@ import Link from 'next/link';
 export default function MeetingMainPage() {
   const [inputText, setInputText] = useState('');
   const [messages, setMessages] = useState([
-    { id: '1', role: 'ai', text: 'สวัสดีครับ ผมคือผู้ช่วย AI ประจำคณะกรรมการจัดซื้อจัดจ้าง ท่านสามารถสอบถามระเบียบพัสดุ อัปโหลดข้อความวาระ หรือสรุปเอกสารในจุดนี้ได้เลยครับ' }
+    { id: '1', role: 'ai', text: 'สวัสดีครับ ผมคือผู้ช่วย AI ประจำคณะกรรมการจัดซื้อจัดจ้าง ท่านสามารถสอบถามระเบียบพัสดุ หรือตรวจสอบคีย์ Pool ในหน้านี้ได้เลยครับ' }
   ]);
   const [meetingMode, setMeetingMode] = useState('none');
   const [isRecording, setIsRecording] = useState(false);
   const [loading, setLoading] = useState(false);
-  
-  // --- ระบบเปิด-ปิดโหมดประหยัด Token (แปลอังกฤษ) ---
   const [useTranslation, setUseTranslation] = useState(true);
-
-  // ข้อมูลสถิติแจ้งผู้ใช้งานว่า AI คุยด้วย Pool กล่องไหน
   const [statusInfo, setStatusInfo] = useState('เชื่อมต่อระบบ API Pool อัตโนมัติ');
 
-  // สำหรับระบบลากปรับขนาด 70:30 เหมือนโครงสร้างเดิม
   const [leftWidth, setLeftWidth] = useState(68); 
   const containerRef = useRef<HTMLDivElement>(null);
   const isResizing = useRef(false);
 
   useEffect(() => {
-    // โหลดฟอนต์และไอคอนภายนอกเข้าสู่ระบบ
-    const linkFont = document.createElement('link');
-    linkFont.href = 'https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap';
-    linkFont.rel = 'stylesheet';
-    document.head.appendChild(linkFont);
-
-    const linkIcon = document.createElement('link');
-    linkIcon.href = 'https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css';
-    linkIcon.rel = 'stylesheet';
-    document.head.appendChild(linkIcon);
-
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing.current || !containerRef.current) return;
       let newWidth = (e.clientX / containerRef.current.clientWidth) * 100;
-      if (newWidth > 20 && newWidth < 80) {
-        setLeftWidth(newWidth);
-      }
+      if (newWidth > 20 && newWidth < 80) setLeftWidth(newWidth);
     };
     const handleMouseUp = () => { isResizing.current = false; };
-
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
     return () => {
@@ -52,95 +33,106 @@ export default function MeetingMainPage() {
     };
   }, []);
 
-  // ฟังก์ชันถาม AI อัจฉริยะ (ดึงค่า API Pool จากเบราว์เซอร์ไปประมวลผลหลังบ้าน)
   const askAI = async () => {
     if (!inputText.trim() || loading) return;
-
     const userText = inputText.trim();
     const userMsgId = Date.now().toString();
     const aiMsgId = (Date.now() + 1).toString();
 
-    // 1. เพิ่มข้อความฝั่งผู้ใช้เข้าหน้าจอ
     setMessages(prev => [...prev, { id: userMsgId, role: 'user', text: userText }]);
     setInputText('');
     setLoading(true);
-
-    // 2. ตั้งสถานะกำลังคิดรอคำตอบ
     setMessages(prev => [...prev, { id: aiMsgId, role: 'ai', text: 'กำลังประมวลผลข้อมูลผ่านตัวสำรองระบบ...' }]);
 
     try {
-      // 3. ควานหาชุดคีย์จากเครื่องเบราว์เซอร์ที่บันทึกมาจากหน้าเทส
       let savedPool = [];
       const localData = localStorage.getItem('prove_api_pool');
       if (localData) {
         try { savedPool = JSON.parse(localData); } catch(e) { console.error(e); }
       }
 
-      // 4. ส่งข้อมูลไปยัง Dynamic Proxy หลังบ้าน Vercel
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: userText,
-          apiPool: savedPool, // พ่วงคีย์สำรอง 3 กล่องส่งไปทำงานหลังบ้าน
-          useTranslation: useTranslation // แจ้งเปิด/ปิด โหมดแปลงภาษาประหยัด Token
-        }),
+        body: JSON.stringify({ message: userText, apiPool: savedPool, useTranslation: useTranslation }),
       });
-
       const data = await res.json();
+      if (data.error) throw new Error(data.error);
 
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      const replyText = data.reply || '⚠️ ตัวแบบจำลองส่งข้อมูลกลับมาว่างเปล่า';
-      
-      // อัปเดตบอกว่าดึงข้อมูลสำเร็จมาจากคีย์สำรองลำดับที่เท่าไหร่
       if (data.usedSlot) {
-        setStatusInfo(`✅ ดึงข้อมูลสำเร็จจาก API กล่องลำดับที่ ${data.usedSlot} ${data.translated ? '(เปิดโหมดประหยัด Token ชนิดแปลภาษา)' : ''}`);
+        setStatusInfo(`✅ ดึงข้อมูลสำเร็จจาก API กล่องลำดับที่ ${data.usedSlot} ${data.translated ? '(โหมดประหยัด Token)' : ''}`);
       }
 
-      // 5. นำคำตอบ AI ใส่ลงหน้าต่างแชทหลัก
-      setMessages(prev =>
-        prev.map(msg => msg.id === aiMsgId ? { ...msg, text: replyText } : msg)
-      );
-
+      setMessages(prev => prev.map(msg => msg.id === aiMsgId ? { ...msg, text: data.reply || '⚠️ ส่งข้อมูลมาว่างเปล่า' } : msg));
     } catch (err: any) {
-      setMessages(prev =>
-        prev.map(msg => msg.id === aiMsgId ? { ...msg, text: `❌ เกิดข้อผิดพลาดระบบพูล: ${err.message}` } : msg)
-      );
-    } finally {
+      setMessages(prev => prev.map(msg => msg.id === aiMsgId ? { ...msg, text: `❌ เกิดข้อผิดพลาด: ${err.message}` } : msg));
+    } {
       setLoading(false);
     }
   };
 
   return (
-    <div className="app-container" id="container" ref={containerRef}>
-      <style dangerouslySetInnerHTML={{ __html: `
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Sarabun', sans-serif; }
-        .app-container { display: flex; width: 100vw; height: 100vh; position: relative; background: #f8fafc; }
-        
-        /* ฝั่งซ้าย: ระบบวิดีโอห้องประชุม */
-        .left-pane { min-width: 250px; background: #0b0f19; display: flex; flex-direction: column; overflow: hidden; }
-        .video-placeholder { flex: 1; display: flex; align-items: center; justify-content: center; color: #475569; background: #020617; position: relative; }
-        .controls { padding: 16px; background: #0f172a; display: flex; gap: 12px; justify-content: center; border-top: 1px solid #1e293b; }
-        .btn-ctrl { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
-        .btn-ctrl:hover { background: #334155; color: white; }
-        
-        /* ตัวลากปรับความกว้างหน้าจอ */
-        .resizer { width: 10px; background: #e2e8f0; cursor: col-resize; transition: background 0.2s; display: flex; align-items: center; justify-content: center; z-index: 10; }
-        .resizer:hover { background: #3b82f6; }
-        .resizer::after { content: '⋮'; color: #94a3b8; font-size: 14px; font-weight: bold; }
-        
-        /* ฝั่งขวา: ระบบแชท AI สนับสนุนกรรมการ */
-        .right-pane { flex: 1; min-width: 320px; background: #ffffff; display: flex; flex-direction: column; box-shadow: -4px 0 20px rgba(0,0,0,0.03); }
-        .ai-header { padding: 16px 20px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; }
-        .header-left-info { display: flex; flex-direction: column; gap: 2px; }
-        .api-badge-status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: bold; color: #0f172a; }
-        
-        /* สวิตช์สลับโหมดประหยัด Token */
-        .toggle-container { display: flex; align-items: center; gap: 8px; font-size: 12px; background: #e2e8f0; padding: 4px 8px; border-radius: 20px; cursor: pointer; user-select: none; }
-        .toggle-active { background: #16a34a; color: white; }
+    <div ref={containerRef} style={{ display: 'flex', width: '100vw', height: '100vh', position: 'relative', background: '#f8fafc', overflow: 'hidden' }}>
+      
+      {/* ฝั่งซ้าย: ระบบประชุมวิดีโอ */}
+      <div style={{ width: `${leftWidth}%`, minWidth: '250px', backgroundColor: '#0b0f19', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifycontent: 'center', backgroundColor: '#020617', color: '#475569', padding: '20px' }}>
+          {meetingMode === 'jitsi' ? (
+            <iframe src="https://meet.jit.si/PhraeMeetingRoom" allow="microphone; camera" style={{ width: '100%', height: '100%', border: 'none' }} />
+          ) : meetingMode === 'webex' ? (
+            <div style={{ color: 'white', textAlign: 'center', width: '100%' }}>
+              <p style={{ fontSize: '1.2rem' }}>กำลังเรียกเปิดระบบ Cisco Webex...</p>
+              <a href="webexteams://..." style={{ color: '#67e8f9', display: 'block', marginTop: '10px' }}>คลิกที่นี่เพื่อเปิดแอป</a>
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', width: '100%' }}>
+              <p style={{ color: '#94a3b8' }}>กรุณาเลือกสัญญาณโหมดการประชุมด้านล่าง</p>
+            </div>
+          )}
+        </div>
+        <div style={{ padding: '16px', backgroundColor: '#0f172a', display: 'flex', gap: '12px', justifyContent: 'center' }}>
+          <button onClick={() => setMeetingMode('webex')} style={{ backgroundColor: '#1e293b', color: '#cbd5e1', border: '1px solid #334155', padding: '10px', borderRadius: '6px', cursor: 'pointer' }}>Cisco Webex</button>
+          <button onClick={() => setMeetingMode('jitsi')} style={{ backgroundColor: '#1e293b', color: '#cbd5e1', border: '1px solid #334155', padding: '10px', borderRadius: '6px', cursor: 'pointer' }}>Jitsi Meeting</button>
+          <button onClick={() => setIsRecording(!isRecording)} style={{ backgroundColor: '#1e293b', color: isRecording ? '#ef4444' : '#fb7185', border: '1px solid #334155', padding: '10px', borderRadius: '6px', cursor: 'pointer' }}>
+            {isRecording ? '🛑 หยุดบันทึก' : '🎙️ บันทึกเสียง'}
+          </button>
+        </div>
+      </div>
 
-        /* ปุ่มกดเล็กๆ ย้ายไปหน้าต่างทดสอบระบบ */
-        .btn-go-test { background: #2563eb; color: white; border: none; padding: 8px 12px; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; transition: 0.2s; }
+      {/* แถบลากปรับขนาดกลาง */}
+      <div onMouseDown={() => { isResizing.current = true; }} style={{ width: '10px', backgroundColor: '#e2e8f0', cursor: 'col-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, userSelect: 'none' }}>⋮</div>
+
+      {/* ฝั่งขวา: ช่องแชท AI สนับสนุนกรรมการ */}
+      <div style={{ flex: 1, minWidth: '320px', backgroundColor: 'white', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '16px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#0f172a' }}>Prove AI Assistant Suite (v4)</div>
+            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{statusInfo}</div>
+          </div>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <div onClick={() => setUseTranslation(!useTranslation)} style={{ backgroundColor: useTranslation ? '#16a34a' : '#e2e8f0', color: useTranslation ? 'white' : '#475569', padding: '4px 8px', borderRadius: '20px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' }}>
+              {useTranslation ? 'ประหยัด Token ON' : 'โหมดปกติ'}
+            </div>
+            <Link href="/api-test" style={{ backgroundColor: '#2563eb', color: 'white', textDecoration: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold' }}>
+              ⚙️ ปรับแต่ง API
+            </Link>
+          </div>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+          {messages.map((msg) => (
+            <div key={msg.id} style={{ maxWidth: '85%', padding: '12px 16px', borderRadius: '12px', fontSize: '0.95rem', lineHeight: '1.5', alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', backgroundColor: msg.role === 'user' ? '#2563eb' : '#f1f5f9', color: msg.role === 'user' ? 'white' : '#0f172a', border: msg.role === 'user' ? 'none' : '1px solid #e2e8f0' }}>
+              {msg.text}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ padding: '15px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '10px', backgroundColor: 'white' }}>
+          <textarea value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askAI(); } }} placeholder="พิมพ์สอบถามระเบียบที่นี่..." style={{ flex: 1, padding: '10px', border: '1px solid #cbd5e1', borderRadius: '8px', resize: 'none', height: '42px', outline: 'none' }} />
+          <button onClick={askAI} style={{ border: 'none', borderRadius: '8px', backgroundColor: '#2563eb', color: 'white', padding: '0 15px', cursor: 'pointer', fontWeight: 'bold' }}>ส่ง</button>
+        </div>
+      </div>
+
+    </div>
+  );
+}

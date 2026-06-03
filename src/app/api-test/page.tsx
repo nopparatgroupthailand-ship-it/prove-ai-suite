@@ -4,151 +4,125 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
 export default function ApiTestPage() {
-  // สร้าง State สำหรับเก็บข้อมูล API ทั้ง 3 ช่อง
   const [pools, setPools] = useState([
     { provider: 'thaillm', url: 'https://thaillm.or.th/api/v1', key: '', model: 'opentaigpt-thaillm-8b-instruct-v7.2' },
     { provider: 'openai', url: 'https://api.openai.com/v1', key: '', model: 'gpt-4o-mini' },
     { provider: 'ollama', url: 'http://localhost:11434', key: 'ollama-local', model: 'llama3' }
   ]);
 
-  // สเต็ปโหลดค่าเก่าที่เคยบันทึกไว้ในเบราว์เซอร์ขึ้นมาแสดงผลอัตโนมัติ
   useEffect(() => {
     const savedPools = localStorage.getItem('prove_api_pool');
     if (savedPools) {
-      try {
-        setPools(JSON.parse(savedPools));
-      } catch (e) {
-        console.error('โหลดค่าล้มเหลว', e);
-      }
+      try { setPools(JSON.parse(savedPools)); } catch (e) { console.error(e); }
     }
   }, []);
 
-  // ฟังก์ชันอัปเดตข้อมูลรายช่องเมื่อพิมพ์กรอก
   const handleInputChange = (index: number, field: string, value: string) => {
     const updated = [...pools];
     updated[index] = { ...updated[index], [field]: value };
     setPools(updated);
   };
 
-  // ปุ่มกดเพื่อเซฟค่าจำลงเครื่องเบราว์เซอร์
   const saveToLocal = () => {
     localStorage.setItem('prove_api_pool', JSON.stringify(pools));
-    alert('🎯 บันทึกชุด API Pool ลำดับ 1-2-3 ลงระบบเรียบร้อยแล้วครับ! ค่านี้จะส่งไปใช้ในหน้าประชุมหลักทันที');
+    alert('🎯 บันทึกชุด API Pool เรียบร้อยแล้วครับ! ค่านี้จะส่งไปใช้ในหน้าประชุมหลักทันที');
   };
 
-  // --- ระบบกล่องจำลองถามตอบ (Mini Chat Tester) ของแต่ละกรอบ ---
   const [chatInputs, setChatInputs] = useState(['', '', '']);
   const [chatOutputs, setChatOutputs] = useState(['ยังไม่มีการทดสอบ', 'ยังไม่มีการทดสอบ', 'ยังไม่มีการทดสอบ']);
   const [loadingSlot, setLoadingSlot] = useState<number | null>(null);
 
   const testSingleSlot = async (index: number) => {
     const currentInput = chatInputs[index].trim();
-    if (!currentInput) {
-      alert('กรุณาพิมพ์ข้อความทดสอบในช่องก่อนครับ');
-      return;
-    }
+    if (!currentInput) { alert('กรุณาพิมพ์ข้อความทดสอบก่อนครับ'); return; }
 
     setLoadingSlot(index);
-    setChatOutputs(prev => {
-      const next = [...prev];
-      next[index] = 'กำลังส่งข้อมูลตรวจสอบสัญญาณคีย์...';
-      return next;
-    });
+    setChatOutputs(prev => { const next = [...prev]; next[index] = 'กำลังตรวจสอบสัญญาณคีย์...'; return next; });
 
     try {
-      // ยิงตรงไปหาหลังบ้านตัวกลางของเรา โดยส่งเฉพาะค่าของกล่องตัวมันเองไปเทส
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: currentInput,
-          apiPool: [pools[index]], // บังคับให้วิ่งช่องนี้โดยเฉพาะ
-          useTranslation: false // หน้าเทสปล่อยให้พิมพ์แบบตรงตัว
-        })
+        body: JSON.stringify({ message: currentInput, apiPool: [pools[index]], useTranslation: false })
       });
-
       const data = await res.json();
-      setChatOutputs(prev => {
-        const next = [...prev];
-        next[index] = data.reply || data.error || '⚠️ ระบบไม่ส่งข้อมูลการตอบกลับ';
-        return next;
-      });
+      setChatOutputs(prev => { const next = [...prev]; next[index] = data.reply || data.error || '⚠️ ไม่ส่งข้อมูลตอบกลับ'; return next; });
     } catch (err: any) {
-      setChatOutputs(prev => {
-        const next = [...prev];
-        next[index] = `❌ การเชื่อมต่อล้มเหลว: ${err.message}`;
-        return next;
-      });
+      setChatOutputs(prev => { const next = [...prev]; next[index] = `❌ ล้มเหลว: ${err.message}`; return next; });
     } finally {
       setLoadingSlot(null);
     }
   };
 
+  // กำหนดสีกรอบตามลำดับความสำคัญ 1, 2, 3
+  const slotColors = ['#2563eb', '#7c3aed', '#0891b2'];
+
   return (
-    <div className="tester-container">
-      <style dangerouslySetInnerHTML={{ __html: `
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Sarabun', sans-serif; }
-        body { background: #f0f4f8; color: #1a2232; }
-        .tester-header { background: #0f172a; padding: 20px; color: white; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .header-title h1 { font-size: 1.5rem; display: flex; align-items: center; gap: 10px; }
-        .header-title p { font-size: 0.85rem; color: #94a3b8; margin-top: 4px; }
-        .btn-nav-main { background: #475569; color: white; text-decoration: none; padding: 10px 16px; border-radius: 6px; font-weight: 600; font-size: 0.9rem; display: flex; align-items: center; gap: 5px; transition: 0.2s; }
-        .btn-nav-main:hover { background: #334155; }
-        
-        .main-content { max-width: 1000px; margin: 30px auto; padding: 0 20px; display: flex; flex-direction: column; gap: 25px; }
-        .pool-card { background: white; border-radius: 12px; border: 1px solid #d4dce8; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.02); position: relative; }
-        
-        /* แถบสีบ่งบอกระดับความสำคัญของ Pool */
-        .pool-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; }
-        .card-slot-0::before { background: #2563eb; } /* ลำดับ 1 - น้ำเงิน */
-        .card-slot-1::before { background: #7c3aed; } /* ลำดับ 2 - ม่วง */
-        .card-slot-2::before { background: #0891b2; } /* ลำดับ 3 - ฟ้า */
-
-        .card-header { padding: 15px 20px; border-bottom: 1px solid #eef2f6; display: flex; justify-content: space-between; align-items: center; background: #fafbfc; }
-        .slot-badge { font-weight: bold; font-size: 0.9rem; padding: 4px 10px; border-radius: 20px; color: white; }
-        .badge-0 { background: #2563eb; }
-        .badge-1 { background: #7c3aed; }
-        .badge-2 { background: #0891b2; }
-
-        .card-body { padding: 20px; display: flex; flex-direction: column; gap: 15px; }
-        .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
-        .form-group { display: flex; flex-direction: column; gap: 6px; }
-        .form-group.full-width { grid-column: span 2; }
-        label { font-size: 0.85rem; font-weight: 600; color: #475569; }
-        input, select { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; background: #fff; width: 100%; }
-        input:focus, select:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
-        
-        .mini-chat-section { border-top: 1px dashed #e2e8f0; padding-top: 15px; margin-top: 5px; }
-        .chat-input-row { display: flex; gap: 10px; }
-        .btn-test { padding: 0 20px; border: none; background: #1e293b; color: white; font-weight: bold; border-radius: 6px; cursor: pointer; white-space: nowrap; transition: 0.2s; }
-        .btn-test:hover { background: #0f172a; }
-        .btn-test:disabled { background: #94a3b8; cursor: not-allowed; }
-        
-        .chat-output-box { margin-top: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; font-size: 0.95rem; line-height: 1.5; min-height: 40px; color: #334155; word-break: break-word; }
-        
-        .save-bar { background: white; border-radius: 12px; border: 1px solid #d4dce8; padding: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.02); margin-bottom: 5px; }
-        .btn-save-all { background: #16a34a; color: white; border: none; padding: 14px 28px; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer; width: 100%; text-align: center; box-shadow: 0 4px 6px rgba(22,163,74,0.2); transition: 0.2s; }
-        .btn-save-all:hover { background: #15803d; transform: translateY(-1px); }
-      `}} />
-
-      <header className="tester-header">
-        <div className="header-title">
-          <h1>🧪 ระบบตั้งค่าและทดสอบสัญญาณ API Pool</h1>
-          <p>จัดลำดับความต้องการในการดึงคีย์สำรองอัตโนมัติ เพื่อเสถียรภาพสูงสุดของห้องประชุมอัจฉริยะ</p>
+    <div style={{ backgroundColor: '#f0f4f8', minHeight: '100vh', color: '#1a2232', fontFamily: 'sans-serif' }}>
+      <header style={{ backgroundColor: '#0f172a', padding: '20px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 style={{ fontSize: '1.4rem' }}>🧪 ระบบตั้งค่าและทดสอบสัญญาณ API Pool</h1>
+          <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '4px' }}>จัดลำดับความต้องการคีย์สำรองเพื่อเสถียรภาพสูงสุดของห้องประชุมอัจฉริยะ</p>
         </div>
-        <Link href="/meeting-main" className="btn-nav-main">
+        <Link href="/meeting-main" style={{ backgroundColor: '#475569', color: 'white', textDecoration: 'none', padding: '10px 16px', borderRadius: '6px', fontSize: '0.9rem', fontWeight: 'bold' }}>
           🖥️ กลับหน้าประชุมหลัก
         </Link>
       </header>
 
-      <main className="main-content">
-        {/* แถบบาร์บันทึกข้อมูล */}
-        <div className="save-bar">
-          <button className="btn-save-all" onClick={saveToLocal}>
-            💾 บันทึกโครงสร้างและส่งคีย์ลงระบบจัดลำดับ Pool (ส่งต่อไปหน้าประชุมหลัก)
-          </button>
-        </div>
+      <main style={{ maxWidth: '900px', margin: '20px auto', padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <button onClick={saveToLocal} style={{ backgroundColor: '#16a34a', color: 'white', border: 'none', padding: '14px', borderRadius: '8px', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer', width: '100%' }}>
+          💾 บันทึกโครงสร้างและส่งคีย์ลงระบบจัดลำดับ Pool (ส่งต่อไปหน้าประชุมหลัก)
+        </button>
 
         {pools.map((pool, idx) => (
-          <div key={idx} className={`pool-card card-slot-${idx}`}>
-            <div
+          <div key={idx} style={{ backgroundColor: 'white', borderRadius: '10px', border: `1px solid #d4dce8`, borderLeft: `6px solid ${slotColors[idx]}`, overflow: 'hidden', padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eef2f6', paddingBottom: '10px' }}>
+              <span style={{ backgroundColor: slotColors[idx], color: 'white', fontWeight: 'bold', fontSize: '0.85rem', padding: '4px 10px', borderRadius: '20px' }}>
+                ลำดับความสำคัญที่ {idx + 1}
+              </span>
+              <small style={{ color: '#64748b', fontWeight: 'bold' }}>
+                {idx === 0 ? '🎯 Main Provider' : idx === 1 ? '🔄 Backup 1' : '🔄 Backup 2'}
+              </small>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#475569' }}>ค่ายระบบบริการ</label>
+                <select value={pool.provider} onChange={(e) => handleInputChange(idx, 'provider', e.target.value)} style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                  <option value="thaillm">ThaiLLM API</option>
+                  <option value="openai">OpenAI Compatible / ค่ายอื่น</option>
+                  <option value="ollama">Ollama (Local Run)</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#475569' }}>ชื่อตัวแบบจำลอง (Model)</label>
+                <input type="text" value={pool.model} onChange={(e) => handleInputChange(idx, 'model', e.target.value)} style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', gridColumn: 'span 2' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#475569' }}>ที่อยู่เซิร์ฟเวอร์ปลายทาง (URL)</label>
+                <input type="text" value={pool.url} onChange={(e) => handleInputChange(idx, 'url', e.target.value)} style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', gridColumn: 'span 2' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#475569' }}>รหัสพาสเวิร์ด (API Key)</label>
+                <input type="password" value={pool.key} onChange={(e) => handleInputChange(idx, 'key', e.target.value)} placeholder="กรอกคีย์ความลับ Bearer Token ที่นี่" style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+              </div>
+            </div>
+
+            <div style={{ borderTop: '1px dashed #e2e8f0', paddingTop: '15px', marginTop: '5px' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 'bold' }}>⚙️ จำลองระบบถามตอบช่องลำดับที่ {idx + 1}:</label>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <input type="text" value={chatInputs[idx]} onChange={(e) => setChatInputs(prev => { const next = [...prev]; next[idx] = e.target.value; return next; })} placeholder="พิมพ์ทดสอบคำถามตรงนี้..." style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+                <button onClick={() => testSingleSlot(idx)} disabled={loadingSlot !== null} style={{ padding: '0 20px', border: 'none', backgroundColor: '#1e293b', color: 'white', fontWeight: 'bold', borderRadius: '6px', cursor: 'pointer' }}>
+                  {loadingSlot === idx ? '⏳ ยิงทดสอบ...' : '🚀 ยิงทดสอบ'}
+                </button>
+              </div>
+              <div style={{ marginTop: '10px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: '12px', borderRadius: '6px', fontSize: '0.9rem', color: '#334155' }}>
+                <strong>ผลลัพธ์:</strong> {chatOutputs[idx]}
+              </div>
+            </div>
+          </div>
+        ))}
+      </main>
+    </div>
+  );
+}
