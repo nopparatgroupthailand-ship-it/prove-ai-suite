@@ -26,11 +26,10 @@ export async function POST(req: Request) {
 
     const promptContent = useTranslation ? simpleTranslateToEnglish(message) : message;
 
-    // 🎯 แก้ไข URL สำรองหลักให้ถูกต้องเรียบร้อยแล้วครับพี่!
     const activePool = apiPool && apiPool.length > 0 ? apiPool : [
       { 
         provider: 'thaillm', 
-        url: 'https://playground.thaillm.or.th/api/v1', //  แก้ไขเพิ่ม playground. เรียบร้อยครับ
+        url: 'https://playground.thaillm.or.th/api/v1', 
         key: process.env.THAILLM_API_KEY || 'mbnr62PY5yMtnDOjDq4rAQ5uhszXKDEt', 
         model: 'opentaigpt-thaillm-8b-instruct-v7.2' 
       },
@@ -87,7 +86,21 @@ export async function POST(req: Request) {
 
         if (response.ok) {
           const data = await response.json();
-          let replyText = data.choices?.[0]?.message?.content || '';
+          let replyText = '';
+
+          // 🎯 ปรับปรุงจุดแกะค่า JSON ใหม่ให้รองรับทุกมิติ ป้องกันคำตอบว่างเปล่า
+          if (data.choices?.[0]?.message?.content) {
+            replyText = data.choices[0].message.content;
+          } else if (data.reply) {
+            replyText = data.reply;
+          } else if (data.response) {
+            replyText = data.response;
+          } else if (typeof data === 'string') {
+            replyText = data;
+          } else {
+            // หากได้มาเป็นก้อน Object แปลกๆ ให้แปลงเป็นข้อความอ่านง่ายฟ้องออกมาเลย
+            replyText = JSON.stringify(data);
+          }
 
           if (replyText) {
             return NextResponse.json({
